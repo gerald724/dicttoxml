@@ -200,8 +200,13 @@ def default_item_func(parent):
     LOG.info('Inside default_item_func(). parent = "%s"' % (parent, ))
     return 'item'
 
+def default_number_formater(obj):
+    if hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    return obj
 
-def convert(obj, ids, attr_type, item_func, cdata, parent='root'):
+
+def convert(obj, ids, attr_type, item_func, number_formater, cdata, parent='root'):
     """Routes the elements of an object to the right function to convert them
     based on their data type"""
     LOG.info('Inside convert(). obj type is: "%s", obj="%s"' % (type(obj).__name__, unicode_me(obj)))
@@ -214,22 +219,23 @@ def convert(obj, ids, attr_type, item_func, cdata, parent='root'):
     if obj is None:
         return convert_none(item_name, obj, attr_type, cdata)
 
-    if isinstance(obj, numbers.Number) or type(obj) in (str, unicode):
+    if type(obj) in (str, unicode):
         return convert_kv(item_name, obj, attr_type, cdata)
 
-    if hasattr(obj, 'isoformat'):
-        return convert_kv(item_name, obj.isoformat(), attr_type, cdata)
+    if isinstance(obj, numbers.Number) or hasattr(obj, 'isoformat'):
+        return convert_kv(item_name, number_formater(obj), attr_type, cdata)
 
     if isinstance(obj, dict):
-        return convert_dict(obj, ids, parent, attr_type, item_func, cdata)
+        return convert_dict(obj, ids, parent, attr_type, item_func, number_formater, cdata)
 
     if isinstance(obj, iterable):
-        return convert_list(obj, ids, parent, attr_type, item_func, cdata)
+        return convert_list(obj, ids, parent, attr_type, item_func, number_formater, cdata)
 
-    raise TypeError('Unsupported data type: %s (%s)' % (obj, type(obj).__name__))
+    obj = vars(obj)
+    return convert_dict(obj, ids, parent, attr_type, item_func, number_formater, cdata)
 
 
-def convert_dict(obj, ids, parent, attr_type, item_func, cdata):
+def convert_dict(obj, ids, parent, attr_type, item_func, number_formater, cdata):
     """Converts a dict into an XML string."""
     LOG.info('Inside convert_dict(): obj type is: "%s", obj="%s"' % (
         type(obj).__name__, unicode_me(obj))
@@ -251,24 +257,12 @@ def convert_dict(obj, ids, parent, attr_type, item_func, cdata):
         if type(val) == bool:
             addline(convert_bool(key, val, attr_type, cdata, attr))
 
-        elif isinstance(val, numbers.Number) or type(val) in (str, unicode):
+        elif type(val) in (str, unicode):
             addline(convert_kv(key, val, attr_type, cdata, attr))
 
-        elif hasattr(val, 'isoformat'): # datetime
-            addline(convert_kv(key, val.isoformat(), attr_type, cdata, attr))
+        elif isinstance(val, numbers.Number) or hasattr(val, 'isoformat'):
+            addline(convert_kv(key, number_formater(val), attr_type, cdata, attr))
 
-        elif type(val) == bool:
-            addline(convert_bool(key, val, attr_type, cdata, attr))
-
-        elif isinstance(val, dict):
-            if attr_type:
-                attr['type'] = get_xml_type(val)
-            addline('<%s%s>%s</%s>' % (
-                key, make_attrstring(attr),
-                convert_dict(val, ids, key, attr_type, item_func, cdata),
-                key
-                )
-            )
 
         elif isinstance(val, iterable):
             if attr_type:
@@ -276,7 +270,7 @@ def convert_dict(obj, ids, parent, attr_type, item_func, cdata):
             addline('<%s%s>%s</%s>' % (
                 key,
                 make_attrstring(attr),
-                convert_list(val, ids, key, attr_type, item_func, cdata),
+                convert_list(val, ids, key, attr_type, item_func, number_formater, cdata),
                 key
                 )
             )
@@ -285,14 +279,20 @@ def convert_dict(obj, ids, parent, attr_type, item_func, cdata):
             addline(convert_none(key, val, attr_type, cdata, attr))
 
         else:
-            raise TypeError('Unsupported data type: %s (%s)' % (
-                val, type(val).__name__)
+            if not isinstance(val, dict):
+                val = vars(val)
+            if attr_type:
+                attr['type'] = get_xml_type(val)
+            addline('<%s%s>%s</%s>' % (
+                key, make_attrstring(attr),
+                convert_dict(val, ids, key, attr_type, item_func, number_formater, cdata),
+                key)
             )
 
     return ''.join(output)
 
 
-def convert_list(items, ids, parent, attr_type, item_func, cdata):
+def convert_list(items, ids, parent, attr_type, item_func, number_formater, cdata):
     """Converts a list into an XML string."""
     LOG.info('Inside convert_list()')
     output = []
@@ -308,43 +308,27 @@ def convert_list(items, ids, parent, attr_type, item_func, cdata):
             unicode_me(item), item_name, type(item).__name__)
         )
         attr = {} if not ids else { 'id': '%s_%s' % (this_id, i+1) }
-        if isinstance(item, numbers.Number) or type(item) in (str, unicode):
+        if type(item) in (str, unicode):
             addline(convert_kv(item_name, item, attr_type, cdata, attr))
 
-        elif hasattr(item, 'isoformat'): # datetime
-            addline(convert_kv(item_name, item.isoformat(), attr_type, cdata, attr))
+        elif isinstance(item, numbers.Number) or hasattr(item, 'isoformat'):
+            addline(convert_kv(item_name, number_formater(item), attr_type, cdata, attr))
 
         elif type(item) == bool:
             addline(convert_bool(item_name, item, attr_type, cdata, attr))
-
-        elif isinstance(item, dict):
-            if not attr_type:
-                addline('<%s>%s</%s>' % (
-                    item_name,
-                    convert_dict(item, ids, parent, attr_type, item_func, cdata),
-                    item_name,
-                    )
-                )
-            else:
-                addline('<%s type="dict">%s</%s>' % (
-                    item_name,
-                    convert_dict(item, ids, parent, attr_type, item_func, cdata),
-                    item_name,
-                    )
-                )
 
         elif isinstance(item, iterable):
             if not attr_type:
                 addline('<%s %s>%s</%s>' % (
                     item_name, make_attrstring(attr),
-                    convert_list(item, ids, item_name, attr_type, item_func, cdata),
+                    convert_list(item, ids, item_name, attr_type, item_func, number_formater, cdata),
                     item_name,
                     )
                 )
             else:
                 addline('<%s type="list"%s>%s</%s>' % (
                     item_name, make_attrstring(attr),
-                    convert_list(item, ids, item_name, attr_type, item_func, cdata),
+                    convert_list(item, ids, item_name, attr_type, item_func, number_formater, cdata),
                     item_name,
                     )
                 )
@@ -353,9 +337,23 @@ def convert_list(items, ids, parent, attr_type, item_func, cdata):
             addline(convert_none(item_name, None, attr_type, cdata, attr))
 
         else:
-            raise TypeError('Unsupported data type: %s (%s)' % (
-                item, type(item).__name__)
-            )
+            if not isinstance(item, dict):
+                item = vars(item)
+            if not attr_type:
+                addline('<%s>%s</%s>' % (
+                    item_name,
+                    convert_dict(item, ids, parent, attr_type, item_func, number_formater, cdata),
+                    item_name,
+                )
+                        )
+            else:
+                addline('<%s type="dict">%s</%s>' % (
+                    item_name,
+                    convert_dict(item, ids, parent, attr_type, item_func, number_formater, cdata),
+                    item_name,
+                )
+                        )
+
     return ''.join(output)
 
 
@@ -429,6 +427,7 @@ def dicttoxml(
     ids = False,
     attr_type = True,
     item_func = default_item_func,
+    number_formater = default_number_formater, 
     cdata = False,
     include_encoding = True,
     encoding = 'UTF-8',
@@ -447,6 +446,8 @@ def dicttoxml(
     - item_func specifies what function should generate the element name for
       items in a list.
       Default is 'item'
+    - number_formater specifies what function should do date and time formating
+      Default is 'isoformat()'
     - cdata specifies whether string values should be wrapped in CDATA sections.
       Default is False
     """
@@ -462,12 +463,12 @@ def dicttoxml(
 
         addline('<%s>%s</%s>' % (
         custom_root,
-        convert(obj, ids, attr_type, item_func, cdata, parent=custom_root),
+        convert(obj, ids, attr_type, item_func, number_formater, cdata, parent=custom_root),
         custom_root,
         )
     )
     else:
-        addline(convert(obj, ids, attr_type, item_func, cdata, parent=''))
+        addline(convert(obj, ids, attr_type, item_func, number_formater, cdata, parent=''))
 
     if return_bytes == False:
         return ''.join(output)

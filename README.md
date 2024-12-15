@@ -334,7 +334,7 @@ Version 1.7.17
 
 * Release Date: 2024-12-15
 * Changes:
-    * added serialisation of custom class items converting them to dict using vars()
+    * added serialisation of custom class items converting them to dict (using vars()) before recursivly processing them
     * added custom number and date formating
 
 Version 1.7.16

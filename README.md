@@ -1,12 +1,13 @@
 Summary
 =======
 
-Converts a Python dictionary or other native data type into a valid XML string.
+Converts a Python object, dictionary or other native data type into a valid XML string.
 
 Details
 =======
 
-Supports item (`int`, `float`, `long`, `decimal.Decimal`, `bool`, `str`, `unicode`, `datetime`, `none` and other number-like objects) and collection (`list`, `set`, `tuple` and `dict`, as well as iterable and dict-like objects) data types, with arbitrary nesting for the collections. Items with a `datetime` type are converted to ISO format strings. Items with a `None` type become empty XML elements.
+Supports item (`int`, `float`, `long`, `decimal.Decimal`, `bool`, `str`, `unicode`, `datetime`, `none` and other number-like objects) and collection (`list`, `set`, `tuple` and `dict`, as well as iterable and dict-like objects and custom class objects) data types, with arbitrary nesting for the collections. Items with a `datetime` type are converted to ISO format strings by default. Items with a `None` type become empty XML elements.
+
 
 The root object passed into the `dicttoxml` method can be any of the supported data types.
 
@@ -16,7 +17,7 @@ For lists of items, if each item is also a collection data type (`lists`, `dict`
 
 Each element includes an optional `type` attribute with the data type. By default, the type attribute it included but it can be excluded by passing an optional `attr_type=False` argument when calling the `dicttoxml` method.
 
-Note: `datetime` data types are converted into ISO format strings, and `unicode` and `datetime` data types get a `str` attribute.
+Note: `datetime` data types are converted into ISO format strings, and `unicode` and `datetime` data types get a `str` attribute, despite you define a custom number-formater function 
 
     Python -> XML
     integer   int
@@ -33,7 +34,7 @@ Note: `datetime` data types are converted into ISO format strings, and `unicode`
     tuple     list
     dict      dict
 
-Elements with an unsupported data type raise a TypeError exception.
+Elements with an unsupported data type are converted into a dict using the vars() function before beeing converted like a dict.
 
 If an element name is invalid XML, it is rendered with the name "key" and the invalid name is included as a `name` attribute. E.g. `{ "^.{0,256}$": "foo" }` would be rendered `<key name="^.{0,256}$">foo</key>`. An exception is element names with spaces, which are converted to underscores.
 
@@ -58,12 +59,12 @@ Basic Usage
 Once installed, import the library into your script and convert a dict into xml by running the `dicttoxml` function:
 
     >>> import dicttoxml
-    >>> xml = dicttoxml.dicttoxml(some_dict)
+    >>> xml = dicttoxml.dicttoxml(some_object)
 
 Alternately, you can import the `dicttoxml()` function from the library.
 
     >>> from dicttoxml import dicttoxml
-    >>> xml = dicttoxml(some_dict)
+    >>> xml = dicttoxml(some_object)
 
 That's it!
 
@@ -221,6 +222,16 @@ You can define each item name to be the singular of its parent name by returning
 
 Of course, this can be combined with other optional arguments, like disabling type attributes or custom root element names.
 
+Define Custom Number Formating
+==============================
+    def my_number_formater(obj):
+        if isinstance(obj, 'datetime'):
+            return obj.strftime('%Y%m%d%H%M%S')     # i.e. Timestamp without any separators
+        elif isinstance(obj, 'float'):
+            return f'{obj:.2f}'     # numbers with 2 decimals
+        return obj          # other objects unformated
+    xml = dicttoxml.dicttoxml(obj, number_formater=my_number_formater)
+
 CDATA
 =====
 
@@ -304,15 +315,27 @@ Author
 * Author: Ryan McGreal
 * Email: [ryan@quandyfactory.com](mailto:ryan@quandyfactory.com)
 * Repository: [http://github.com/quandyfactory/dicttoxml](http://github.com/quandyfactory/dicttoxml)
+* Fork - Version 1.7.17
+    * Author: Gerald Klein
+    * Email: [gklein@kleinsweb.de](mailto:gklein@kleinsweb.de)
+    * Repository: [https://github.com/gerald724/dicttoxml](https://github.com/gerald724/dicttoxml)
 
 Version
 =======
 
-* Version: 1.7.16
-* Release Date: 2022-12-23
+* Version: 1.7.17
+* Release Date: 2024-12-15
 
 Revision History
 ================
+
+Version 1.7.17
+--------------
+
+* Release Date: 2024-12-15
+* Changes:
+    * added serialisation of custom class items converting them to dict using vars()
+    * added custom number and date formating
 
 Version 1.7.16
 --------------
